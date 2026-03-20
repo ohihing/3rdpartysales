@@ -30,7 +30,7 @@ async function init() {
 
         render();
         document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { console.error("로딩 실패:", e); }
+    } catch (e) { console.error("데이터 로딩 실패:", e); }
 }
 
 // --- 유틸리티 함수 ---
@@ -41,7 +41,7 @@ function parseGoogleDate(d) {
 }
 
 function parseSafeNumber(cell) {
-    if (!cell || cell.v === null || cell.v === "집계중") return NaN;
+    if (!cell || cell.v === null || cell.v === undefined || cell.v === "집계중") return NaN;
     return typeof cell.v === 'number' ? cell.v : Number(String(cell.v).replace(/,/g, ''));
 }
 
@@ -74,7 +74,15 @@ function render() {
     else renderStockView();
 }
 
-// 1. [현황판 페이지] - 출간일 최신순 정렬
+// 변화량 표시 유틸리티 (NaN 및 무변동 처리)
+function getChangeDisplay(val) {
+    if (isNaN(val)) return { str: '-', class: 'val-no-change' };
+    if (val === 0) return { str: '-', class: 'val-no-change' };
+    if (val > 0) return { str: '↑ ' + Math.abs(val).toLocaleString(), class: 'val-rise' };
+    return { str: '↓ ' + Math.abs(val).toLocaleString(), class: 'val-fall' };
+}
+
+// 1. [현황판 페이지]
 function renderStockView() {
     const container = document.getElementById('stock-view');
     container.innerHTML = '';
@@ -84,15 +92,31 @@ function renderStockView() {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-    // [수정] 판매지수 순이 아닌 '출간일(openDate)' 최신순으로 정렬
     const books = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo)
                           .sort((a, b) => b.openDate - a.openDate);
+
+    // [추가] 설명행 (Header) 생성
+    const header = document.createElement('div');
+    header.className = 'stock-header';
+    header.innerHTML = `
+        <div style="font-size:0.7rem">순번</div>
+        <div>도서제목</div>
+        <div style="text-align:right">현재 지수</div>
+        <div style="text-align:right">작일 변화 / 주 변화 / 월 변화</div>
+        <div style="text-align:center">추세</div>
+    `;
+    container.appendChild(header);
 
     books.forEach((b, i) => {
         const cur = b[`${prefix}_cur`];
         const d = b[`${prefix}_day`];
         const w = b[`${prefix}_week`];
         const m = b[`${prefix}_month`];
+
+        // NaN 및 무변동 처리된 변화량 가져오기
+        const dDisplay = getChangeDisplay(d);
+        const wDisplay = getChangeDisplay(w);
+        const mDisplay = getChangeDisplay(m);
 
         const item = document.createElement('div');
         item.className = 'stock-item';
@@ -104,12 +128,10 @@ function renderStockView() {
             </div>
             <div class="stock-val">${isNaN(cur) ? '-' : cur.toLocaleString()}</div>
             <div class="stock-change-group">
-                <div class="stock-sub-val ${d > 0 ? 'val-rise' : (d < 0 ? 'val-fall' : '')}">
-                    ${isNaN(d) ? '-' : (d > 0 ? '↑' : '↓') + ' ' + Math.abs(d).toLocaleString()}
-                </div>
+                <div class="stock-sub-val ${dDisplay.class}">${dDisplay.str} (작일)</div>
                 <div class="stock-sub-val" style="font-size:0.65rem; color:#666">
-                    주 ${isNaN(w) ? '-' : (w > 0 ? '↑' : '↓') + Math.abs(w).toLocaleString()} | 
-                    월 ${isNaN(m) ? '-' : (m > 0 ? '↑' : '↓') + Math.abs(m).toLocaleString()}
+                    <span class="${wDisplay.class}">주 ${wDisplay.str.replace('↑ ', '↑').replace('↓ ', '↓')}</span> | 
+                    <span class="${mDisplay.class}">월 ${mDisplay.str.replace('↑ ', '↑').replace('↓ ', '↓')}</span>
                 </div>
             </div>
             <div class="sparkline-container"><canvas id="spark-${prefix}-${i}" width="100" height="35"></canvas></div>
@@ -119,7 +141,7 @@ function renderStockView() {
     });
 }
 
-// 2. [대시보드 페이지] - 기존 로직 유지
+// 2. [대시보드 페이지]
 function renderDashboard() {
     const main = document.getElementById('dashboard-view');
     main.innerHTML = ''; 
@@ -189,8 +211,9 @@ function drawSparkline(canvasId, data) {
     const max = Math.max(...filteredData);
     const range = max - min || 1;
     
+    // PC/모바일 선 굵기 대응
     ctx.strokeStyle = filteredData[filteredData.length-1] >= filteredData[0] ? '#eb4d4b' : '#0984e3';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = window.innerWidth <= 650 ? 1.5 : 2; 
     ctx.lineJoin = 'round';
     ctx.beginPath();
     
