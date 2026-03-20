@@ -38,3 +38,18 @@ header h1 span { color: #535c68; display: block; font-size: 1.2rem; }
 /* 변화량 컬러 */
 .val-rise { color: var(--yes-red); }
 .val-fall { color: var(--ala-blue); }
+
+/* 화살표 도입에 따른 미세 조정 */
+.book-val {
+    font-size: 1rem; /* 숫자 크기 살짝 키움 */
+    display: flex;
+    align-items: center;
+    justify-content: flex-end; /* 오른쪽 정렬 */
+    gap: 3px; /* 화살표와 숫자 사이 간격 */
+}
+
+/* ➖ 변화없음 표시용 */
+.book-val:not(.val-rise):not(.val-fall) {
+    color: #b2bec3;
+    font-size: 0.8rem;
+}
