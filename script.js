@@ -20,7 +20,7 @@ async function init() {
             const c = row.c;
             return {
                 title: c[0] ? String(c[0].v) : "",
-                openDateStr: c[3] ? String(c[3].f || c[3].v) : "", // 날짜 텍스트 보관
+                openDateStr: c[3] ? String(c[3].f || c[3].v) : "", 
                 openDate: c[3] ? parseGoogleDate(c[3].v) : null,
                 yes_cur: parseSafeNumber(c[6]), yes_day: parseSafeNumber(c[8]), yes_week: parseSafeNumber(c[10]), yes_month: parseSafeNumber(c[12]),
                 ala_cur: parseSafeNumber(c[13]), ala_day: parseSafeNumber(c[15]), ala_week: parseSafeNumber(c[17]), ala_month: parseSafeNumber(c[19]),
@@ -29,21 +29,23 @@ async function init() {
         }).filter(b => b.title && b.title !== "null");
 
         render();
-        document.getElementById('update-time').innerText = `업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { console.error(e); }
+        document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
+    } catch (e) { console.error("로딩 실패:", e); }
 }
 
 // --- 유틸리티 함수 ---
 function parseGoogleDate(d) {
     const m = String(d).match(/Date\((\d+),(\d+),(\d+)\)/);
-    return m ? new Date(m[1], m[2], m[3]) : new Date(d);
+    if (m) return new Date(m[1], m[2], m[3]);
+    return new Date(d);
 }
+
 function parseSafeNumber(cell) {
     if (!cell || cell.v === null || cell.v === "집계중") return NaN;
     return typeof cell.v === 'number' ? cell.v : Number(String(cell.v).replace(/,/g, ''));
 }
 
-// --- 메뉴 제어 ---
+// --- 메뉴 및 페이지 제어 ---
 function toggleMenu() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('overlay').classList.toggle('open');
@@ -54,7 +56,7 @@ function showPage(page) {
     document.getElementById('page-title').innerHTML = page === 'dashboard' ? '출판콘텐츠사업단 <span>신간 판매 현황</span>' : '최근도서 <span>판매지수 현황</span>';
     document.getElementById('dashboard-view').style.display = page === 'dashboard' ? 'block' : 'none';
     document.getElementById('stock-view').style.display = page === 'stock' ? 'block' : 'none';
-    toggleMenu();
+    if(document.getElementById('sidebar').classList.contains('open')) toggleMenu();
     render();
 }
 
@@ -66,12 +68,13 @@ function switchChannel(channel) {
     render();
 }
 
-// --- 렌더링 엔진 ---
+// --- 렌더링 통합 엔진 ---
 function render() {
     if (currentPage === 'dashboard') renderDashboard();
     else renderStockView();
 }
 
+// 1. [현황판 페이지] - 출간일 최신순 정렬
 function renderStockView() {
     const container = document.getElementById('stock-view');
     container.innerHTML = '';
@@ -80,8 +83,10 @@ function renderStockView() {
     
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    // [수정] 판매지수 순이 아닌 '출간일(openDate)' 최신순으로 정렬
     const books = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo)
-                          .sort((a, b) => b[`${prefix}_cur`] - a[`${prefix}_cur`]);
+                          .sort((a, b) => b.openDate - a.openDate);
 
     books.forEach((b, i) => {
         const cur = b[`${prefix}_cur`];
@@ -97,19 +102,82 @@ function renderStockView() {
                 <div class="stock-title">${b.title}</div>
                 <div class="stock-date">${b.openDateStr} 등록</div>
             </div>
-            <div class="stock-val">${cur.toLocaleString()}</div>
+            <div class="stock-val">${isNaN(cur) ? '-' : cur.toLocaleString()}</div>
             <div class="stock-change-group">
-                <div class="stock-sub-val ${d > 0 ? 'val-rise' : 'val-fall'}">${d > 0 ? '↑' : '↓'} ${Math.abs(d).toLocaleString()} (작일)</div>
-                <div class="stock-sub-val" style="font-size:0.65rem; color:#666">주 ${w > 0 ? '↑' : '↓'}${Math.abs(w).toLocaleString()} | 월 ${m > 0 ? '↑' : '↓'}${Math.abs(m).toLocaleString()}</div>
+                <div class="stock-sub-val ${d > 0 ? 'val-rise' : (d < 0 ? 'val-fall' : '')}">
+                    ${isNaN(d) ? '-' : (d > 0 ? '↑' : '↓') + ' ' + Math.abs(d).toLocaleString()}
+                </div>
+                <div class="stock-sub-val" style="font-size:0.65rem; color:#666">
+                    주 ${isNaN(w) ? '-' : (w > 0 ? '↑' : '↓') + Math.abs(w).toLocaleString()} | 
+                    월 ${isNaN(m) ? '-' : (m > 0 ? '↑' : '↓') + Math.abs(m).toLocaleString()}
+                </div>
             </div>
-            <div class="sparkline-container"><canvas id="spark-${prefix}-${i}"></canvas></div>
+            <div class="sparkline-container"><canvas id="spark-${prefix}-${i}" width="100" height="35"></canvas></div>
         `;
         container.appendChild(item);
         drawSparkline(`spark-${prefix}-${i}`, [cur - m || cur, cur - w || cur, cur - d || cur, cur]);
     });
 }
 
-// 스파크라인 그리기 (4개 지점 추세)
+// 2. [대시보드 페이지] - 기존 로직 유지
+function renderDashboard() {
+    const main = document.getElementById('dashboard-view');
+    main.innerHTML = ''; 
+    const isYes = currentChannel === 'yes24';
+    const prefix = isYes ? 'yes' : 'ala';
+    const oneYearAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
+    const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
+
+    const configs = [
+        { title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs', period: 'Real-time' },
+        { title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Yesterday' },
+        { title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Yesterday' },
+        { title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Weekly' },
+        { title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Weekly' },
+        { title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Monthly' },
+        { title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Monthly' }
+    ];
+
+    let lastPeriod = "";
+    configs.forEach(conf => {
+        let filtered = freshBooks.filter(b => !isNaN(b[conf.key]));
+        if (conf.displayType === 'rise') filtered = filtered.filter(b => b[conf.key] > 0);
+        if (conf.displayType === 'fall') filtered = filtered.filter(b => b[conf.key] < 0);
+        filtered.sort((a, b) => conf.sort === 'desc' ? b[conf.key] - a[conf.key] : a[conf.key] - b[conf.key]);
+        const finalData = filtered.slice(0, conf.limit);
+
+        if (finalData.length > 0) {
+            if (conf.period !== lastPeriod) {
+                const divider = document.createElement('div');
+                divider.className = 'period-divider';
+                const periodNames = { 'Real-time': '현재', 'Yesterday': '어제', 'Weekly': '1주일', 'Monthly': '한달' };
+                divider.innerHTML = `<span class="period-badge">${periodNames[conf.period]}</span><div class="period-line"></div>`;
+                main.appendChild(divider);
+                lastPeriod = conf.period;
+            }
+            const section = document.createElement('section');
+            const colorClass = conf.displayType === 'rise' ? 'rise' : (conf.displayType === 'fall' ? 'fall' : '');
+            section.innerHTML = `<div class="section-title ${colorClass}">${conf.title}</div>`;
+            const list = document.createElement('div');
+            list.className = 'list-wrapper';
+            finalData.forEach((b, i) => {
+                const val = b[conf.key];
+                const displayVal = conf.displayType === 'abs' ? val.toLocaleString() : `${val > 0 ? '↑' : '↓'} ${Math.abs(val).toLocaleString()}`;
+                const valClass = conf.displayType === 'abs' ? '' : (val > 0 ? 'val-rise' : 'val-fall');
+                list.innerHTML += `
+                    <div class="book-card">
+                        <div class="rank">${i + 1}</div>
+                        <img class="book-img" src="${b.img || 'https://via.placeholder.com/45x65?text=No+Img'}" onerror="this.src='https://via.placeholder.com/45x65?text=Error'">
+                        <div class="book-info"><div class="book-title">${b.title}</div><div class="book-val ${valClass}">${displayVal}</div></div>
+                    </div>`;
+            });
+            section.appendChild(list);
+            main.appendChild(section);
+        }
+    });
+}
+
+// 3. 스파크라인 그리기 함수
 function drawSparkline(canvasId, data) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -123,6 +191,7 @@ function drawSparkline(canvasId, data) {
     
     ctx.strokeStyle = filteredData[filteredData.length-1] >= filteredData[0] ? '#eb4d4b' : '#0984e3';
     ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     
     filteredData.forEach((v, i) => {
@@ -133,5 +202,4 @@ function drawSparkline(canvasId, data) {
     ctx.stroke();
 }
 
-// renderDashboard는 기존 코드를 그대로 사용 (생략)
 init();
