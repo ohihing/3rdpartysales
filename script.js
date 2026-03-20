@@ -76,12 +76,12 @@ function render() {
     const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
     const configs = [
-        { id: 1, title: '1. 신간 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs' },
-        { id: 2, title: '2. 작일 대비 급상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 1, title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs' },
+        { id: 2, title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise' },
         { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall' },
-        { id: 4, title: '4. 최근 1주일 급상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 4, title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise' },
         { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall' },
-        { id: 6, title: '6. 최근 1달 급상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 6, title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise' },
         { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall' }
     ];
 
