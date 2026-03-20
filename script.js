@@ -82,7 +82,7 @@ function getChangeDisplay(val) {
     return { str: '↓ ' + Math.abs(val).toLocaleString(), class: 'val-fall' };
 }
 
-// 1. [현황판 페이지]
+// 1. [현황판 페이지] - 설명행 제거/추세 제거
 function renderStockView() {
     const container = document.getElementById('stock-view');
     container.innerHTML = '';
@@ -95,17 +95,7 @@ function renderStockView() {
     const books = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo)
                           .sort((a, b) => b.openDate - a.openDate);
 
-    // [추가] 설명행 (Header) 생성
-    const header = document.createElement('div');
-    header.className = 'stock-header';
-    header.innerHTML = `
-        <div style="font-size:0.7rem">순번</div>
-        <div>도서제목</div>
-        <div style="text-align:right">현재 지수</div>
-        <div style="text-align:right">작일 변화 / 주 변화 / 월 변화</div>
-        <div style="text-align:center">추세</div>
-    `;
-    container.appendChild(header);
+    // [제거] 설명행 생성 (삭제됨)
 
     books.forEach((b, i) => {
         const cur = b[`${prefix}_cur`];
@@ -134,19 +124,18 @@ function renderStockView() {
                     <span class="${mDisplay.class}">월 ${mDisplay.str.replace('↑ ', '↑').replace('↓ ', '↓')}</span>
                 </div>
             </div>
-            <div class="sparkline-container"><canvas id="spark-${prefix}-${i}" width="100" height="35"></canvas></div>
-        `;
+            `;
         container.appendChild(item);
-        drawSparkline(`spark-${prefix}-${i}`, [cur - m || cur, cur - w || cur, cur - d || cur, cur]);
+        // [제거] 스파크라인 그리기 제거
     });
 }
 
-// 2. [대시보드 페이지]
+// 2. [대시보드 페이지] - 기존 로직 유지
 function renderDashboard() {
     const main = document.getElementById('dashboard-view');
     main.innerHTML = ''; 
     const isYes = currentChannel === 'yes24';
-    const prefix = isYes ? 'yes' : 'ala';
+    const prefix = isYes ? 'yes` : 'ala';
     const oneYearAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
     const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
@@ -199,30 +188,6 @@ function renderDashboard() {
     });
 }
 
-// 3. 스파크라인 그리기 함수
-function drawSparkline(canvasId, data) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const filteredData = data.filter(v => !isNaN(v));
-    if (filteredData.length < 2) return;
-
-    const min = Math.min(...filteredData);
-    const max = Math.max(...filteredData);
-    const range = max - min || 1;
-    
-    // PC/모바일 선 굵기 대응
-    ctx.strokeStyle = filteredData[filteredData.length-1] >= filteredData[0] ? '#eb4d4b' : '#0984e3';
-    ctx.lineWidth = window.innerWidth <= 650 ? 1.5 : 2; 
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    
-    filteredData.forEach((v, i) => {
-        const x = (i / (filteredData.length - 1)) * canvas.width;
-        const y = canvas.height - ((v - min) / range) * canvas.height;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-}
+// [제거] 스파크라인 그리기 함수 (삭제됨)
 
 init();
