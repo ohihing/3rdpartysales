@@ -6,46 +6,39 @@ let allBooks = [];
 let currentChannel = 'yes24';
 let currentPage = 'dashboard';
 
-// --- 초기화 및 데이터 로딩 ---
 async function init() {
     try {
         const response = await fetch(JSON_URL);
         const text = await response.text();
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        const jsonData = JSON.parse(text.substring(start, end + 1));
-        const rows = jsonData.table.rows;
+        const jsonData = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
         
-        allBooks = rows.map(row => {
+        allBooks = jsonData.table.rows.map(row => {
             const c = row.c;
             return {
                 title: c[0] ? String(c[0].v) : "",
                 openDateStr: c[3] ? String(c[3].f || c[3].v) : "", 
                 openDate: c[3] ? parseGoogleDate(c[3].v) : null,
-                yes_cur: parseSafeNumber(c[6]), yes_day: parseSafeNumber(c[8]), yes_week: parseSafeNumber(c[10]), yes_month: parseSafeNumber(c[12]),
-                ala_cur: parseSafeNumber(c[13]), ala_day: parseSafeNumber(c[15]), ala_week: parseSafeNumber(c[17]), ala_month: parseSafeNumber(c[19]),
+                yes_cur: parseVal(c[6]), yes_day: parseVal(c[8]), yes_week: parseVal(c[10]), yes_month: parseVal(c[12]),
+                ala_cur: parseVal(c[13]), ala_day: parseVal(c[15]), ala_week: parseVal(c[17]), ala_month: parseVal(c[19]),
                 img: c[20] ? String(c[20].v) : ""
             };
         }).filter(b => b.title && b.title !== "null");
 
         render();
-        document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { console.error("데이터 로딩 실패:", e); }
+        document.getElementById('update-time').innerText = `최근 업데이트: ${new Date().toLocaleString('ko-KR')}`;
+    } catch (e) { console.error("데이터 로드 에러:", e); }
 }
 
-// --- 유틸리티 함수 ---
 function parseGoogleDate(d) {
     const m = String(d).match(/Date\((\d+),(\d+),(\d+)\)/);
-    if (m) return new Date(m[1], m[2], m[3]);
-    return new Date(d);
+    return m ? new Date(m[1], m[2], m[3]) : new Date(d);
 }
 
-function parseSafeNumber(cell) {
-    if (!cell || cell.v === null || cell.v === undefined || cell.v === "집계중") return NaN;
+function parseVal(cell) {
+    if (!cell || cell.v === null || cell.v === "집계중") return NaN;
     return typeof cell.v === 'number' ? cell.v : Number(String(cell.v).replace(/,/g, ''));
 }
 
-// --- 메뉴 및 페이지 제어 ---
 function toggleMenu() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('overlay').classList.toggle('open');
@@ -62,132 +55,65 @@ function showPage(page) {
 
 function switchChannel(channel) {
     currentChannel = channel;
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.innerText.includes(channel === 'yes24' ? '예스' : '알라딘'));
-    });
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.innerText.includes(channel === 'yes24' ? '예스' : '알라딘')));
     render();
 }
 
-// --- 렌더링 통합 엔진 ---
+function getStat(val) {
+    if (isNaN(val) || val === 0) return { s: '-', c: 'val-no-change' };
+    return { s: (val > 0 ? '↑' : '↓') + ' ' + Math.abs(val).toLocaleString(), c: val > 0 ? 'val-rise' : 'val-fall' };
+}
+
 function render() {
-    if (currentPage === 'dashboard') renderDashboard();
-    else renderStockView();
-}
-
-// 변화량 표시 유틸리티 (NaN 및 무변동 처리)
-function getChangeDisplay(val) {
-    if (isNaN(val)) return { str: '-', class: 'val-no-change' };
-    if (val === 0) return { str: '-', class: 'val-no-change' };
-    if (val > 0) return { str: '↑ ' + Math.abs(val).toLocaleString(), class: 'val-rise' };
-    return { str: '↓ ' + Math.abs(val).toLocaleString(), class: 'val-fall' };
-}
-
-// 1. [현황판 페이지] - 설명행 제거/추세 제거
-function renderStockView() {
-    const container = document.getElementById('stock-view');
-    container.innerHTML = '';
     const isYes = currentChannel === 'yes24';
     const prefix = isYes ? 'yes' : 'ala';
-    
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const fresh = allBooks.filter(b => b.openDate && (new Date() - b.openDate) < 365*24*60*60*1000);
 
-    const books = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo)
-                          .sort((a, b) => b.openDate - a.openDate);
-
-    // [제거] 설명행 생성 (삭제됨)
-
-    books.forEach((b, i) => {
-        const cur = b[`${prefix}_cur`];
-        const d = b[`${prefix}_day`];
-        const w = b[`${prefix}_week`];
-        const m = b[`${prefix}_month`];
-
-        // NaN 및 무변동 처리된 변화량 가져오기
-        const dDisplay = getChangeDisplay(d);
-        const wDisplay = getChangeDisplay(w);
-        const mDisplay = getChangeDisplay(m);
-
-        const item = document.createElement('div');
-        item.className = 'stock-item';
-        item.innerHTML = `
-            <div class="rank" style="color:#999; font-size:0.8rem">${i+1}</div>
-            <div class="book-info">
-                <div class="stock-title">${b.title}</div>
-                <div class="stock-date">${b.openDateStr} 등록</div>
-            </div>
-            <div class="stock-val">${isNaN(cur) ? '-' : cur.toLocaleString()}</div>
-            <div class="stock-change-group">
-                <div class="stock-sub-val ${dDisplay.class}">${dDisplay.str} (작일)</div>
-                <div class="stock-sub-val" style="font-size:0.65rem; color:#666">
-                    <span class="${wDisplay.class}">주 ${wDisplay.str.replace('↑ ', '↑').replace('↓ ', '↓')}</span> | 
-                    <span class="${mDisplay.class}">월 ${mDisplay.str.replace('↑ ', '↑').replace('↓ ', '↓')}</span>
-                </div>
-            </div>
-            `;
-        container.appendChild(item);
-        // [제거] 스파크라인 그리기 제거
-    });
-}
-
-// 2. [대시보드 페이지] - 기존 로직 유지
-function renderDashboard() {
-    const main = document.getElementById('dashboard-view');
-    main.innerHTML = ''; 
-    const isYes = currentChannel === 'yes24';
-    const prefix = isYes ? 'yes` : 'ala';
-    const oneYearAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
-    const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
-
-    const configs = [
-        { title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs', period: 'Real-time' },
-        { title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Yesterday' },
-        { title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Yesterday' },
-        { title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Weekly' },
-        { title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Weekly' },
-        { title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Monthly' },
-        { title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Monthly' }
-    ];
-
-    let lastPeriod = "";
-    configs.forEach(conf => {
-        let filtered = freshBooks.filter(b => !isNaN(b[conf.key]));
-        if (conf.displayType === 'rise') filtered = filtered.filter(b => b[conf.key] > 0);
-        if (conf.displayType === 'fall') filtered = filtered.filter(b => b[conf.key] < 0);
-        filtered.sort((a, b) => conf.sort === 'desc' ? b[conf.key] - a[conf.key] : a[conf.key] - b[conf.key]);
-        const finalData = filtered.slice(0, conf.limit);
-
-        if (finalData.length > 0) {
-            if (conf.period !== lastPeriod) {
-                const divider = document.createElement('div');
-                divider.className = 'period-divider';
-                const periodNames = { 'Real-time': '현재', 'Yesterday': '어제', 'Weekly': '1주일', 'Monthly': '한달' };
-                divider.innerHTML = `<span class="period-badge">${periodNames[conf.period]}</span><div class="period-line"></div>`;
-                main.appendChild(divider);
-                lastPeriod = conf.period;
+    if (currentPage === 'dashboard') {
+        const view = document.getElementById('dashboard-view');
+        view.innerHTML = '';
+        const configs = [
+            { t: '1. 현재 판매지수 Best 10', k: `${prefix}_cur`, type: 'abs', p: '현재' },
+            { t: '2. 작일 대비 상승 Best 5', k: `${prefix}_day`, type: 'rise', p: '어제' },
+            { t: '3. 작일 대비 하락 도서 5권', k: `${prefix}_day`, type: 'fall', p: '어제' },
+            { t: '4. 최근 1주일 상승 Best 5', k: `${prefix}_week`, type: 'rise', p: '1주일' },
+            { t: '5. 최근 1주일 하락 도서 5권', k: `${prefix}_week`, type: 'fall', p: '1주일' },
+            { t: '6. 최근 1달 상승 Best 5', k: `${prefix}_month`, type: 'rise', p: '한달' },
+            { t: '7. 최근 1달 하락 도서 5권', k: `${prefix}_month`, type: 'fall', p: '한달' }
+        ];
+        
+        let lastP = "";
+        configs.forEach(conf => {
+            let data = fresh.filter(b => !isNaN(b[conf.k]));
+            if (conf.type === 'rise') data = data.filter(b => b[conf.k] > 0);
+            if (conf.type === 'fall') data = data.filter(b => b[conf.k] < 0);
+            data.sort((a,b) => conf.type === 'fall' ? a[conf.k]-b[conf.k] : b[conf.k]-a[conf.k]);
+            data = data.slice(0, 10);
+            
+            if (data.length > 0) {
+                if (conf.p !== lastP) {
+                    view.innerHTML += `<div class="period-divider"><span class="period-badge">${conf.p}</span><div class="period-line"></div></div>`;
+                    lastP = conf.p;
+                }
+                let html = `<section><div class="section-title ${conf.type}">${conf.t}</div>`;
+                const list = document.createElement('div');
+                list.className = 'list-wrapper';
+                data.forEach((b, i) => {
+                    const res = getStat(b[conf.k]);
+                    const valStr = conf.type === 'abs' ? b[conf.k].toLocaleString() : res.s;
+                    html += `<div class="book-card"><div class="rank">${i+1}</div><img src="${b.img}" class="book-img" onerror="this.src='https://via.placeholder.com/45x65'"><div class="book-info"><div class="book-title">${b.title}</div><div class="book-val ${conf.type==='abs'?'':res.c}">${valStr}</div></div></div>`;
+                });
+                view.innerHTML += html + `</section>`;
             }
-            const section = document.createElement('section');
-            const colorClass = conf.displayType === 'rise' ? 'rise' : (conf.displayType === 'fall' ? 'fall' : '');
-            section.innerHTML = `<div class="section-title ${colorClass}">${conf.title}</div>`;
-            const list = document.createElement('div');
-            list.className = 'list-wrapper';
-            finalData.forEach((b, i) => {
-                const val = b[conf.key];
-                const displayVal = conf.displayType === 'abs' ? val.toLocaleString() : `${val > 0 ? '↑' : '↓'} ${Math.abs(val).toLocaleString()}`;
-                const valClass = conf.displayType === 'abs' ? '' : (val > 0 ? 'val-rise' : 'val-fall');
-                list.innerHTML += `
-                    <div class="book-card">
-                        <div class="rank">${i + 1}</div>
-                        <img class="book-img" src="${b.img || 'https://via.placeholder.com/45x65?text=No+Img'}" onerror="this.src='https://via.placeholder.com/45x65?text=Error'">
-                        <div class="book-info"><div class="book-title">${b.title}</div><div class="book-val ${valClass}">${displayVal}</div></div>
-                    </div>`;
-            });
-            section.appendChild(list);
-            main.appendChild(section);
-        }
-    });
+        });
+    } else {
+        const view = document.getElementById('stock-view');
+        view.innerHTML = '';
+        fresh.sort((a,b) => b.openDate - a.openDate).forEach((b, i) => {
+            const d = getStat(b[`${prefix}_day`]), w = getStat(b[`${prefix}_week`]), m = getStat(b[`${prefix}_month`]);
+            view.innerHTML += `<div class="stock-item"><div class="rank">${i+1}</div><div class="book-info"><div class="stock-title">${b.title}</div><div class="stock-date">${b.openDateStr} 등록</div></div><div class="stock-val">${isNaN(b[`${prefix}_cur`]) ? '-' : b[`${prefix}_cur`].toLocaleString()}</div><div class="stock-change-group"><div class="stock-sub-val ${d.c}">${d.s} (작일)</div><div class="stock-sub-val" style="font-size:0.6rem; color:#999">주 ${w.s} | 월 ${m.s}</div></div></div>`;
+        });
+    }
 }
-
-// [제거] 스파크라인 그리기 함수 (삭제됨)
 
 init();
