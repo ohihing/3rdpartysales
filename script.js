@@ -73,13 +73,13 @@ function render() {
         const view = document.getElementById('dashboard-view');
         view.innerHTML = '';
         const configs = [
-            { t: '1. 현재 판매지수 Best 10', k: `${prefix}_cur`, type: 'abs', p: '현재' },
-            { t: '2. 작일 대비 상승 Best 5', k: `${prefix}_day`, type: 'rise', p: '어제' },
-            { t: '3. 작일 대비 하락 도서 5권', k: `${prefix}_day`, type: 'fall', p: '어제' },
-            { t: '4. 최근 1주일 상승 Best 5', k: `${prefix}_week`, type: 'rise', p: '1주일' },
-            { t: '5. 최근 1주일 하락 도서 5권', k: `${prefix}_week`, type: 'fall', p: '1주일' },
-            { t: '6. 최근 1달 상승 Best 5', k: `${prefix}_month`, type: 'rise', p: '한달' },
-            { t: '7. 최근 1달 하락 도서 5권', k: `${prefix}_month`, type: 'fall', p: '한달' }
+            { t: '1. 현재 판매지수 Best 10', k: `${prefix}_cur`, type: 'abs', p: '현재', l: 10 },
+            { t: '2. 작일 대비 상승 Best 5', k: `${prefix}_day`, type: 'rise', p: '어제', l: 5 },
+            { t: '3. 작일 대비 하락 도서 5권', k: `${prefix}_day`, type: 'fall', p: '어제', l: 5 },
+            { t: '4. 최근 1주일 상승 Best 5', k: `${prefix}_week`, type: 'rise', p: '1주일', l: 5 },
+            { t: '5. 최근 1주일 하락 도서 5권', k: `${prefix}_week`, type: 'fall', p: '1주일', l: 5 },
+            { t: '6. 최근 1달 상승 Best 5', k: `${prefix}_month`, type: 'rise', p: '한달', l: 5 },
+            { t: '7. 최근 1달 하락 도서 5권', k: `${prefix}_month`, type: 'fall', p: '한달', l: 5 }
         ];
         
         let lastP = "";
@@ -88,7 +88,9 @@ function render() {
             if (conf.type === 'rise') data = data.filter(b => b[conf.k] > 0);
             if (conf.type === 'fall') data = data.filter(b => b[conf.k] < 0);
             data.sort((a,b) => conf.type === 'fall' ? a[conf.k]-b[conf.k] : b[conf.k]-a[conf.k]);
-            data = data.slice(0, 10);
+            
+            // [수정] 각 설정값(l)에 맞춰 리스트 개수 조절
+            data = data.slice(0, conf.l);
             
             if (data.length > 0) {
                 if (conf.p !== lastP) {
@@ -96,8 +98,6 @@ function render() {
                     lastP = conf.p;
                 }
                 let html = `<section><div class="section-title ${conf.type}">${conf.t}</div>`;
-                const list = document.createElement('div');
-                list.className = 'list-wrapper';
                 data.forEach((b, i) => {
                     const res = getStat(b[conf.k]);
                     const valStr = conf.type === 'abs' ? b[conf.k].toLocaleString() : res.s;
