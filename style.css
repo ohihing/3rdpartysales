@@ -53,3 +53,41 @@ header h1 span { color: #535c68; display: block; font-size: 1.2rem; }
     color: #b2bec3;
     font-size: 0.8rem;
 }
+
+/* 타임라인 구분선 및 배지 장치 */
+.period-divider {
+    display: flex;
+    align-items: center;
+    margin: 50px 0 20px; /* 섹션 그룹 간의 간격 */
+    animation: fadeIn 0.8s ease-in-out;
+}
+
+.period-badge {
+    background-color: #333; /* 어두운 회색으로 무게감 부여 */
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-right: 15px;
+    white-space: nowrap;
+}
+
+.period-line {
+    flex-grow: 1;
+    height: 1px;
+    background: linear-gradient(to right, #ddd, transparent);
+}
+
+/* 첫 번째 섹션(현재) 위에는 너무 큰 공백이 생기지 않도록 조정 */
+section:first-of-type .period-divider {
+    margin-top: 10px;
+}
+
+/* 페이드인 애니메이션 */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
