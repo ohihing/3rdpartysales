@@ -1,93 +1,42 @@
-:root {
-    --yes-red: #eb4d4b;
-    --ala-blue: #0984e3;
-    --bg-gray: #f5f6fa;
-    --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
+/* 사이드바 & 블러 효과 */
+.sidebar {
+    position: fixed; top: 0; left: -250px; width: 250px; height: 100%;
+    background: white; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.1);
 }
+.sidebar.open { left: 0; }
+.sidebar-header { font-weight: 800; margin-bottom: 30px; color: #333; font-size: 1.2rem; }
+.sidebar ul { list-style: none; padding: 0; }
+.sidebar li { padding: 15px; cursor: pointer; border-radius: 8px; font-weight: 600; margin-bottom: 5px; }
+.sidebar li:hover { background: #f1f2f6; }
 
-body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-gray); margin: 0; padding: 20px; color: #2d3436; }
-.container { max-width: 800px; margin: 0 auto; }
-
-header { text-align: center; margin-bottom: 30px; }
-header h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 5px; }
-header h1 span { color: #535c68; display: block; font-size: 1.2rem; }
-.last-update { font-size: 0.8rem; color: #b2bec3; font-weight: 400; }
-
-/* 탭 스타일 */
-.tab-wrapper { display: flex; gap: 10px; margin-bottom: 25px; background: #dfe6e9; padding: 5px; border-radius: 12px; }
-.tab-btn { flex: 1; border: none; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.3s; background: transparent; color: #636e72; }
-.tab-btn.active { background: white; color: #2d3436; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-
-/* 섹션 스타일 */
-.section-title { font-size: 1.1rem; font-weight: 700; margin: 30px 0 15px; padding-left: 10px; border-left: 4px solid #2d3436; }
-.section-title.rise { border-color: var(--yes-red); color: var(--yes-red); }
-.section-title.fall { border-color: var(--ala-blue); color: var(--ala-blue); }
-
-/* 카드 스타일 */
-.list-wrapper { display: flex; flex-direction: column; gap: 10px; }
-.book-card { 
-    background: white; padding: 15px; border-radius: 12px; display: flex; align-items: center; 
-    box-shadow: var(--card-shadow); transition: 0.2s;
+.overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.2); backdrop-filter: blur(5px);
+    display: none; z-index: 900;
 }
-.rank { font-weight: 800; width: 30px; color: #b2bec3; font-size: 0.9rem; }
-.book-img { width: 45px; height: 65px; background: #eee; border-radius: 4px; margin-right: 15px; object-fit: cover; }
-.book-info { flex: 1; }
-.book-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.book-val { font-weight: 700; font-size: 0.9rem; }
+.overlay.open { display: block; }
 
-/* 변화량 컬러 */
-.val-rise { color: var(--yes-red); }
-.val-fall { color: var(--ala-blue); }
-
-/* 화살표 도입에 따른 미세 조정 */
-.book-val {
-    font-size: 1rem; /* 숫자 크기 살짝 키움 */
-    display: flex;
-    align-items: center;
-    justify-content: flex-end; /* 오른쪽 정렬 */
-    gap: 3px; /* 화살표와 숫자 사이 간격 */
+.menu-trigger {
+    position: fixed; top: 25px; left: 20px; z-index: 1100; cursor: pointer;
+    display: flex; flex-direction: column; gap: 5px; width: 25px;
 }
+.menu-trigger span { display: block; height: 3px; background: #333; border-radius: 3px; }
 
-/* ➖ 변화없음 표시용 */
-.book-val:not(.val-rise):not(.val-fall) {
-    color: #b2bec3;
-    font-size: 0.8rem;
+/* 주식형 리스트 스타일 */
+.stock-item {
+    background: white; margin-bottom: 2px; padding: 12px 15px;
+    display: grid; grid-template-columns: 40px 1fr 100px 120px 80px;
+    align-items: center; border-bottom: 1px solid #eee;
 }
+.stock-title { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-date { font-size: 0.7rem; color: #999; font-weight: 400; }
+.stock-val { text-align: right; font-weight: 800; font-size: 0.95rem; }
+.stock-change-group { text-align: right; display: flex; flex-direction: column; gap: 2px; }
+.stock-sub-val { font-size: 0.75rem; font-weight: 600; }
+.sparkline-container { width: 80px; height: 30px; padding-left: 10px; }
 
-/* 타임라인 구분선 및 배지 장치 */
-.period-divider {
-    display: flex;
-    align-items: center;
-    margin: 50px 0 20px; /* 섹션 그룹 간의 간격 */
-    animation: fadeIn 0.8s ease-in-out;
-}
-
-.period-badge {
-    background-color: #333; /* 어두운 회색으로 무게감 부여 */
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 20px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-right: 15px;
-    white-space: nowrap;
-}
-
-.period-line {
-    flex-grow: 1;
-    height: 1px;
-    background: linear-gradient(to right, #ddd, transparent);
-}
-
-/* 첫 번째 섹션(현재) 위에는 너무 큰 공백이 생기지 않도록 조정 */
-section:first-of-type .period-divider {
-    margin-top: 10px;
-}
-
-/* 페이드인 애니메이션 */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+/* 모바일 대응 */
+@media (max-width: 600px) {
+    .stock-item { grid-template-columns: 30px 1fr 80px 70px; }
+    .sparkline-container { display: none; }
 }
