@@ -5,21 +5,28 @@ const JSON_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx
 let allBooks = [];
 let currentChannel = 'yes24';
 
-// 구글 특유의 날짜 형식 "Date(2026,2,20)"을 자바스크립트 날짜로 변환
+// [안전장치 1] 날짜 변환 함수
 function parseGoogleDate(dateStr) {
     if (!dateStr || typeof dateStr !== 'string') return null;
     const match = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
-    if (match) {
-        return new Date(match[1], match[2], match[3]);
-    }
+    if (match) return new Date(match[1], match[2], match[3]);
     return new Date(dateStr);
+}
+
+// [안전장치 2] 쉼표 포함된 숫자를 안전하게 숫자로 변환
+function parseSafeNumber(cell) {
+    if (!cell || cell.v === null || cell.v === undefined || cell.v === "집계중") return NaN;
+    if (typeof cell.v === 'number') return cell.v;
+    // 쉼표 제거 후 숫자로 변환
+    const cleaned = String(cell.v).replace(/,/g, '');
+    const num = Number(cleaned);
+    return isNaN(num) ? NaN : num;
 }
 
 async function init() {
     try {
         const response = await fetch(JSON_URL);
         const text = await response.text();
-        
         const start = text.indexOf('{');
         const end = text.lastIndexOf('}');
         const jsonData = JSON.parse(text.substring(start, end + 1));
@@ -27,43 +34,42 @@ async function init() {
         
         allBooks = rows.map(row => {
             const c = row.c;
-            if (!c || !c[0]) return null;
             return {
-                title: c[0].v ? String(c[0].v) : "",
+                title: c[0] ? String(c[0].v) : "",
                 openDate: c[3] ? parseGoogleDate(c[3].v) : null,
-                yes_cur: c[6] && c[6].v != null ? Number(c[6].v) : NaN, 
-                yes_day: c[8] && c[8].v != null ? Number(c[8].v) : NaN,
-                yes_week: c[10] && c[10].v != null ? Number(c[10].v) : NaN,
-                yes_month: c[12] && c[12].v != null ? Number(c[12].v) : NaN,
-                ala_cur: c[13] && c[13].v != null ? Number(c[13].v) : NaN,
-                ala_day: c[15] && c[15].v != null ? Number(c[15].v) : NaN,
-                ala_week: c[17] && c[17].v != null ? Number(c[17].v) : NaN,
-                ala_month: c[19] && c[19].v != null ? Number(c[19].v) : NaN,
+                
+                // 모든 지수 데이터를 안전하게 숫자로 변환
+                yes_cur: parseSafeNumber(c[6]), 
+                yes_day: parseSafeNumber(c[8]),
+                yes_week: parseSafeNumber(c[10]),
+                yes_month: parseSafeNumber(c[12]),
+                
+                ala_cur: parseSafeNumber(c[13]),
+                ala_day: parseSafeNumber(c[15]),
+                ala_week: parseSafeNumber(c[17]),
+                ala_month: parseSafeNumber(c[19]),
+                
                 img: c[20] ? String(c[20].v) : ""
             };
-        }).filter(b => b && b.title);
+        }).filter(b => b.title && b.title !== "null");
 
         switchChannel('yes24');
         document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
     } catch (e) { 
-        console.error("데이터 로딩 실패:", e);
-        document.getElementById('update-time').innerText = "데이터 로딩 실패 (시트 공유 상태 확인 필요)";
+        console.error("로딩 실패:", e);
     }
 }
 
 function switchChannel(channel) {
     currentChannel = channel;
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        const isMatch = (channel === 'yes24' && btn.innerText.includes('예스')) || 
-                        (channel === 'aladin' && btn.innerText.includes('알라딘'));
-        btn.classList.toggle('active', isMatch);
+        btn.classList.toggle('active', btn.innerText.includes(channel === 'yes24' ? '예스' : '알라딘'));
     });
     render();
 }
 
 function render() {
     const main = document.getElementById('content-area');
-    if (!main) return;
     main.innerHTML = ''; 
 
     const isYes = currentChannel === 'yes24';
@@ -74,17 +80,16 @@ function render() {
     const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
     const configs = [
-        { title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs', period: 'Real-time' },
-        { title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Yesterday' },
-        { title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Yesterday' },
-        { title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Weekly' },
-        { title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Weekly' },
-        { title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Monthly' },
-        { title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Monthly' }
+        { id: 1, title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs', period: 'Real-time' },
+        { id: 2, title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Yesterday' },
+        { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Yesterday' },
+        { id: 4, title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Weekly' },
+        { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Weekly' },
+        { id: 6, title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Monthly' },
+        { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Monthly' }
     ];
 
     let lastPeriod = "";
-    const periodNames = { 'Real-time': '현재', 'Yesterday': '어제', 'Weekly': '1주일', 'Monthly': '한달' };
 
     configs.forEach(conf => {
         let filtered = freshBooks.filter(b => !isNaN(b[conf.key]));
@@ -95,14 +100,12 @@ function render() {
         const finalData = filtered.slice(0, conf.limit);
 
         if (finalData.length > 0) {
-            // 기간이 바뀔 때 구분선(Divider) 생성
+            // 기간 구분 배지 생성
             if (conf.period !== lastPeriod) {
                 const divider = document.createElement('div');
                 divider.className = 'period-divider';
-                divider.innerHTML = `
-                    <span class="period-badge">${periodNames[conf.period]}</span>
-                    <div class="period-line"></div>
-                `;
+                const periodNames = { 'Real-time': '현재', 'Yesterday': '어제', 'Weekly': '1주일', 'Monthly': '한달' };
+                divider.innerHTML = `<span class="period-badge">${periodNames[conf.period]}</span><div class="period-line"></div>`;
                 main.appendChild(divider);
                 lastPeriod = conf.period;
             }
