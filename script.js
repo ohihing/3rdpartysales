@@ -1,46 +1,56 @@
 const SHEET_ID = '1os9N1ZIbicQu-F81_xvJ-ruzWptAP8FZT6tut5ZWT44';
 const SHEET_NAME = '마스터_DB';
-// 더 정확한 데이터를 위해 JSON 출력 모드로 변경
 const JSON_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
 let allBooks = [];
 let currentChannel = 'yes24';
 
+// [중요] 구글 특유의 날짜 형식 "Date(2026,2,20)"을 자바스크립트 날짜로 변환
+function parseGoogleDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const match = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
+    if (match) {
+        return new Date(match[1], match[2], match[3]);
+    }
+    return new Date(dateStr);
+}
+
 async function init() {
     try {
         const response = await fetch(JSON_URL);
         const text = await response.text();
-        // 구글 JSON 특유의 접두사 제거
-        const jsonData = JSON.parse(text.substring(47, text.length - 2));
+        
+        // JSON 파싱 구간을 더 안전하게 추출
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        const jsonData = JSON.parse(text.substring(start, end + 1));
         const rows = jsonData.table.rows;
         
         allBooks = rows.map(row => {
             const c = row.c;
             return {
-                title: c[0] ? c[0].v : "",         // A: 제목
-                openDate: c[3] ? new Date(c[3].v) : null, // D: 오픈일
+                title: c[0] ? String(c[0].v) : "",         // A: 제목
+                openDate: c[3] ? parseGoogleDate(c[3].v) : null, // D: 오픈일 (수정됨)
                 
-                // [예스24] G, I, K, M열 (인덱스 6, 8, 10, 12)
                 yes_cur: c[6] ? Number(c[6].v) : NaN, 
                 yes_day: c[8] ? Number(c[8].v) : NaN,
                 yes_week: c[10] ? Number(c[10].v) : NaN,
                 yes_month: c[12] ? Number(c[12].v) : NaN,
                 
-                // [알라딘] N, P, R, T열 (인덱스 13, 15, 17, 19)
                 ala_cur: c[13] ? Number(c[13].v) : NaN,
                 ala_day: c[15] ? Number(c[15].v) : NaN,
                 ala_week: c[17] ? Number(c[17].v) : NaN,
                 ala_month: c[19] ? Number(c[19].v) : NaN,
                 
-                img: c[20] ? c[20].v : ""          // U: 이미지 URL
+                img: c[20] ? String(c[20].v) : ""          // U: 이미지 URL
             };
-        }).filter(b => b.title); // 제목 없는 행 제외
+        }).filter(b => b.title && b.title !== "null");
 
         switchChannel('yes24');
         document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
     } catch (e) { 
         console.error("데이터 로딩 실패:", e);
-        document.getElementById('update-time').innerText = "데이터 로딩 실패 (시트 공유 설정을 확인하세요)";
+        document.getElementById('update-time').innerText = "데이터 로딩 실패: 콘솔 로그를 확인하세요.";
     }
 }
 
@@ -62,7 +72,7 @@ function render() {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     
-    // 1년 이내 신간 필터
+    // 유효한 날짜가 있고, 1년 이내인 신간만 필터링
     const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
     const configs = [
@@ -81,7 +91,6 @@ function render() {
         if (conf.displayType === 'rise') filtered = filtered.filter(b => b[conf.key] > 0);
         if (conf.displayType === 'fall') filtered = filtered.filter(b => b[conf.key] < 0);
 
-        // 숫자 기준으로 정확한 정렬 (큰 숫자 134,202 등이 상단으로 오도록)
         filtered.sort((a, b) => conf.sort === 'desc' ? b[conf.key] - a[conf.key] : a[conf.key] - b[conf.key]);
         const finalData = filtered.slice(0, conf.limit);
 
@@ -99,10 +108,10 @@ function render() {
                 let valClass = "";
 
                 if (conf.displayType === 'abs') {
-                    displayVal = val.toLocaleString(); // 1번 메뉴: 순수 현재 지수
+                    displayVal = val.toLocaleString(); 
                 } else {
                     const arrow = val > 0 ? '↑' : '↓';
-                    displayVal = `${arrow} ${Math.abs(val).toLocaleString()}`; // 화살표 + 절댓값
+                    displayVal = `${arrow} ${Math.abs(val).toLocaleString()}`; 
                     valClass = val > 0 ? 'val-rise' : 'val-fall';
                 }
 
