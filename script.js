@@ -1,67 +1,3 @@
-const SHEET_ID = '1os9N1ZIbicQu-F81_xvJ-ruzWptAP8FZT6tut5ZWT44';
-const SHEET_NAME = '마스터_DB';
-const JSON_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-
-let allBooks = [];
-let currentChannel = 'yes24';
-
-// [중요] 구글 특유의 날짜 형식 "Date(2026,2,20)"을 자바스크립트 날짜로 변환
-function parseGoogleDate(dateStr) {
-    if (!dateStr || typeof dateStr !== 'string') return null;
-    const match = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
-    if (match) {
-        return new Date(match[1], match[2], match[3]);
-    }
-    return new Date(dateStr);
-}
-
-async function init() {
-    try {
-        const response = await fetch(JSON_URL);
-        const text = await response.text();
-        
-        // JSON 파싱 구간을 더 안전하게 추출
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        const jsonData = JSON.parse(text.substring(start, end + 1));
-        const rows = jsonData.table.rows;
-        
-        allBooks = rows.map(row => {
-            const c = row.c;
-            return {
-                title: c[0] ? String(c[0].v) : "",         // A: 제목
-                openDate: c[3] ? parseGoogleDate(c[3].v) : null, // D: 오픈일 (수정됨)
-                
-                yes_cur: c[6] ? Number(c[6].v) : NaN, 
-                yes_day: c[8] ? Number(c[8].v) : NaN,
-                yes_week: c[10] ? Number(c[10].v) : NaN,
-                yes_month: c[12] ? Number(c[12].v) : NaN,
-                
-                ala_cur: c[13] ? Number(c[13].v) : NaN,
-                ala_day: c[15] ? Number(c[15].v) : NaN,
-                ala_week: c[17] ? Number(c[17].v) : NaN,
-                ala_month: c[19] ? Number(c[19].v) : NaN,
-                
-                img: c[20] ? String(c[20].v) : ""          // U: 이미지 URL
-            };
-        }).filter(b => b.title && b.title !== "null");
-
-        switchChannel('yes24');
-        document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { 
-        console.error("데이터 로딩 실패:", e);
-        document.getElementById('update-time').innerText = "데이터 로딩 실패: 콘솔 로그를 확인하세요.";
-    }
-}
-
-function switchChannel(channel) {
-    currentChannel = channel;
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.innerText.includes(channel === 'yes24' ? '예스' : '알라딘'));
-    });
-    render();
-}
-
 function render() {
     const main = document.getElementById('content-area');
     main.innerHTML = ''; 
@@ -71,23 +7,26 @@ function render() {
     
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    
-    // 유효한 날짜가 있고, 1년 이내인 신간만 필터링
     const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
+    // [수정] period 속성을 추가하여 그룹화 기준을 만듭니다.
     const configs = [
-        { id: 1, title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs' },
-        { id: 2, title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise' },
-        { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall' },
-        { id: 4, title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise' },
-        { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall' },
-        { id: 6, title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise' },
-        { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall' }
+        { id: 1, title: '1. 현재 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs', period: 'Real-time' },
+        
+        { id: 2, title: '2. 작일 대비 상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Yesterday' },
+        { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Yesterday' },
+        
+        { id: 4, title: '4. 최근 1주일 상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Weekly' },
+        { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Weekly' },
+        
+        { id: 6, title: '6. 최근 1달 상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise', period: 'Monthly' },
+        { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall', period: 'Monthly' }
     ];
+
+    let lastPeriod = ""; // 이전에 렌더링한 기간을 기억합니다.
 
     configs.forEach(conf => {
         let filtered = freshBooks.filter(b => !isNaN(b[conf.key]));
-        
         if (conf.displayType === 'rise') filtered = filtered.filter(b => b[conf.key] > 0);
         if (conf.displayType === 'fall') filtered = filtered.filter(b => b[conf.key] < 0);
 
@@ -95,6 +34,22 @@ function render() {
         const finalData = filtered.slice(0, conf.limit);
 
         if (finalData.length > 0) {
+            // [추가] 기간(period)이 바뀌었을 때만 구분 장치를 생성합니다.
+            if (conf.period !== lastPeriod) {
+                const divider = document.createElement('div');
+                divider.className = 'period-divider';
+                
+                // 한글 매핑 (원하시면 영어 그대로 두셔도 됩니다)
+                const periodNames = { 'Real-time': '현재', 'Yesterday': '어제', 'Weekly': '1주일', 'Monthly': '한달' };
+                
+                divider.innerHTML = `
+                    <span class="period-badge">${periodNames[conf.period]}</span>
+                    <div class="period-line"></div>
+                `;
+                main.appendChild(divider);
+                lastPeriod = conf.period;
+            }
+
             const section = document.createElement('section');
             const colorClass = conf.displayType === 'rise' ? 'rise' : (conf.displayType === 'fall' ? 'fall' : '');
             section.innerHTML = `<div class="section-title ${colorClass}">${conf.title}</div>`;
@@ -131,5 +86,3 @@ function render() {
         }
     });
 }
-
-init();
