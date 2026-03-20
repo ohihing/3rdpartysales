@@ -1,39 +1,47 @@
 const SHEET_ID = '1os9N1ZIbicQu-F81_xvJ-ruzWptAP8FZT6tut5ZWT44';
 const SHEET_NAME = '마스터_DB';
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+// 더 정확한 데이터를 위해 JSON 출력 모드로 변경
+const JSON_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
 let allBooks = [];
 let currentChannel = 'yes24';
 
 async function init() {
     try {
-        const response = await fetch(CSV_URL);
+        const response = await fetch(JSON_URL);
         const text = await response.text();
-        const rows = text.split('\n').map(r => r.split('","').map(c => c.replace(/"/g, '')));
+        // 구글 JSON 특유의 접두사 제거
+        const jsonData = JSON.parse(text.substring(47, text.length - 2));
+        const rows = jsonData.table.rows;
         
-        // 데이터 가공 (2행부터 / 시트 링크 열 구조 정확히 매칭)
-        allBooks = rows.slice(1).map(row => ({
-            title: row[0], // A: 도서 제목
-            openDate: new Date(row[3]), // D: DB오픈일
-            
-            // [예스24] G, I, K, M열 (인덱스 주의: A열이 0)
-            yes_cur: parseFloat(row[6]),    // G: 현재지수
-            yes_day: parseFloat(row[8]),    // I: 작일변화
-            yes_week: parseFloat(row[10]),  // K: 7일변화
-            yes_month: parseFloat(row[12]), // M: 1달변화
-            
-            // [알라딘] N, P, R, T열
-            ala_cur: parseFloat(row[13]),   // N: 현재지수
-            ala_day: parseFloat(row[15]),   // P: 작일변화
-            ala_week: parseFloat(row[17]),  // R: 7일변화
-            ala_month: parseFloat(row[19]), // T: 1달변화
-            
-            img: row[20] // U: 이미지 URL
-        }));
+        allBooks = rows.map(row => {
+            const c = row.c;
+            return {
+                title: c[0] ? c[0].v : "",         // A: 제목
+                openDate: c[3] ? new Date(c[3].v) : null, // D: 오픈일
+                
+                // [예스24] G, I, K, M열 (인덱스 6, 8, 10, 12)
+                yes_cur: c[6] ? Number(c[6].v) : NaN, 
+                yes_day: c[8] ? Number(c[8].v) : NaN,
+                yes_week: c[10] ? Number(c[10].v) : NaN,
+                yes_month: c[12] ? Number(c[12].v) : NaN,
+                
+                // [알라딘] N, P, R, T열 (인덱스 13, 15, 17, 19)
+                ala_cur: c[13] ? Number(c[13].v) : NaN,
+                ala_day: c[15] ? Number(c[15].v) : NaN,
+                ala_week: c[17] ? Number(c[17].v) : NaN,
+                ala_month: c[19] ? Number(c[19].v) : NaN,
+                
+                img: c[20] ? c[20].v : ""          // U: 이미지 URL
+            };
+        }).filter(b => b.title); // 제목 없는 행 제외
 
         switchChannel('yes24');
         document.getElementById('update-time').innerText = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { console.error("데이터 로딩 실패:", e); }
+    } catch (e) { 
+        console.error("데이터 로딩 실패:", e);
+        document.getElementById('update-time').innerText = "데이터 로딩 실패 (시트 공유 설정을 확인하세요)";
+    }
 }
 
 function switchChannel(channel) {
@@ -51,71 +59,51 @@ function render() {
     const isYes = currentChannel === 'yes24';
     const prefix = isYes ? 'yes' : 'ala';
     
-    // 신간 (출간 1년 이내) 필터 기준일
-    const oneYearAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
-    const freshBooks = allBooks.filter(b => b.openDate >= oneYearAgo && b.title);
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    // 1년 이내 신간 필터
+    const freshBooks = allBooks.filter(b => b.openDate && b.openDate >= oneYearAgo);
 
-    // 메뉴별 설정 (열 구조 매칭 완료)
     const configs = [
-        // 1번 메뉴는 현재 지수로 정렬 및 표시
-        { id: 1, title: '1. 신간 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs_value' },
-        
-        { id: 2, title: '2. 작일 대비 급상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'change_rise' },
-        { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'change_fall' },
-        
-        { id: 4, title: '4. 최근 1주일 급상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'change_rise' },
-        { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'change_fall' },
-        
-        // 6, 7번 메뉴 (데이터 열 매칭 수정완료 - M, T열)
-        { id: 6, title: '6. 최근 1달 급상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'change_rise' },
-        { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'change_fall' }
+        { id: 1, title: '1. 신간 판매지수 Best 10', key: `${prefix}_cur`, sort: 'desc', limit: 10, displayType: 'abs' },
+        { id: 2, title: '2. 작일 대비 급상승 Best 5', key: `${prefix}_day`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 3, title: '3. 작일 대비 하락 도서 5권', key: `${prefix}_day`, sort: 'asc', limit: 5, displayType: 'fall' },
+        { id: 4, title: '4. 최근 1주일 급상승 Best 5', key: `${prefix}_week`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 5, title: '5. 최근 1주일 하락 도서 5권', key: `${prefix}_week`, sort: 'asc', limit: 5, displayType: 'fall' },
+        { id: 6, title: '6. 최근 1달 급상승 Best 5', key: `${prefix}_month`, sort: 'desc', limit: 5, displayType: 'rise' },
+        { id: 7, title: '7. 최근 1달 하락 도서 5권', key: `${prefix}_month`, sort: 'asc', limit: 5, displayType: 'fall' }
     ];
 
     configs.forEach(conf => {
-        // "집계중"(NaN) 제외 및 숫자 데이터만 필터
         let filtered = freshBooks.filter(b => !isNaN(b[conf.key]));
         
-        // 상승/하락 조건에 맞게 한 번 더 필터
-        if (conf.displayType === 'change_rise') filtered = filtered.filter(b => b[conf.key] > 0);
-        if (conf.displayType === 'change_fall') filtered = filtered.filter(b => b[conf.key] < 0);
+        if (conf.displayType === 'rise') filtered = filtered.filter(b => b[conf.key] > 0);
+        if (conf.displayType === 'fall') filtered = filtered.filter(b => b[conf.key] < 0);
 
-        // 정렬
+        // 숫자 기준으로 정확한 정렬 (큰 숫자 134,202 등이 상단으로 오도록)
         filtered.sort((a, b) => conf.sort === 'desc' ? b[conf.key] - a[conf.key] : a[conf.key] - b[conf.key]);
         const finalData = filtered.slice(0, conf.limit);
 
-        // 데이터가 있을 때만 섹션 생성
         if (finalData.length > 0) {
             const section = document.createElement('section');
-            
-            // 타이틀 색상 적용 (상승: 레드, 하락: 블루)
-            let titleClass = '';
-            if(conf.displayType.includes('rise')) titleClass = 'rise';
-            if(conf.displayType.includes('fall')) titleClass = 'fall';
-            
-            section.innerHTML = `<div class="section-title ${titleClass}">${conf.title}</div>`;
+            const colorClass = conf.displayType === 'rise' ? 'rise' : (conf.displayType === 'fall' ? 'fall' : '');
+            section.innerHTML = `<div class="section-title ${colorClass}">${conf.title}</div>`;
             
             const list = document.createElement('div');
             list.className = 'list-wrapper';
 
             finalData.forEach((b, i) => {
-                const rawVal = b[conf.key];
-                let displayVal = '';
-                let valClass = '';
+                const val = b[conf.key];
+                let displayVal = "";
+                let valClass = "";
 
-                if (conf.displayType === 'abs_value') {
-                    // 1번 메뉴: 절댓값 표시 (화살표 없음, 컬러 없음)
-                    displayVal = rawVal.toLocaleString('ko-KR');
+                if (conf.displayType === 'abs') {
+                    displayVal = val.toLocaleString(); // 1번 메뉴: 순수 현재 지수
                 } else {
-                    // 변화량 메뉴: 화살표 및 컬러 적용
-                    if (rawVal > 0) {
-                        displayVal = `↑ ${rawVal.toLocaleString('ko-KR')}`;
-                        valClass = 'val-rise';
-                    } else if (rawVal < 0) {
-                        displayVal = `↓ ${Math.abs(rawVal).toLocaleString('ko-KR')}`; // 마이너스 떼고 절댓값
-                        valClass = 'val-fall';
-                    } else {
-                        displayVal = '➖'; // 변화 없음
-                    }
+                    const arrow = val > 0 ? '↑' : '↓';
+                    displayVal = `${arrow} ${Math.abs(val).toLocaleString()}`; // 화살표 + 절댓값
+                    valClass = val > 0 ? 'val-rise' : 'val-fall';
                 }
 
                 list.innerHTML += `
