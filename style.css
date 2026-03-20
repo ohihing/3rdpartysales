@@ -1,42 +1,115 @@
-/* 사이드바 & 블러 효과 */
+/* 1. 기본 테마 및 변수 설정 */
+:root {
+    --yes-red: #eb4d4b;
+    --ala-blue: #0984e3;
+    --bg-gray: #f5f6fa;
+    --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    --sidebar-width: 260px;
+}
+
+body { 
+    font-family: 'Pretendard', sans-serif; 
+    background-color: var(--bg-gray); 
+    margin: 0; 
+    padding: 20px; 
+    color: #2d3436;
+    transition: filter 0.3s ease;
+}
+
+.container { max-width: 800px; margin: 0 auto; padding-top: 40px; }
+
+/* 2. 헤더 및 업데이트 정보 */
+header { text-align: center; margin-bottom: 30px; }
+header h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 5px; }
+header h1 span { color: #535c68; display: block; font-size: 1.2rem; }
+.last-update { font-size: 0.8rem; color: #b2bec3; font-weight: 400; }
+
+/* 3. 사이드바 버거 메뉴 */
+.menu-trigger {
+    position: fixed; top: 25px; left: 20px; z-index: 1100; cursor: pointer;
+    display: flex; flex-direction: column; gap: 5px; width: 25px; padding: 10px;
+}
+.menu-trigger span { display: block; height: 3px; background: #333; border-radius: 3px; transition: 0.3s; }
+
 .sidebar {
-    position: fixed; top: 0; left: -250px; width: 250px; height: 100%;
-    background: white; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    position: fixed; top: 0; left: calc(-1 * var(--sidebar-width)); width: var(--sidebar-width); height: 100%;
+    background: white; z-index: 1200; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+    padding: 40px 25px; box-shadow: 5px 0 25px rgba(0,0,0,0.1);
 }
 .sidebar.open { left: 0; }
-.sidebar-header { font-weight: 800; margin-bottom: 30px; color: #333; font-size: 1.2rem; }
+.sidebar-header { font-weight: 900; margin-bottom: 40px; color: #111; font-size: 1.4rem; letter-spacing: -1px; }
 .sidebar ul { list-style: none; padding: 0; }
-.sidebar li { padding: 15px; cursor: pointer; border-radius: 8px; font-weight: 600; margin-bottom: 5px; }
-.sidebar li:hover { background: #f1f2f6; }
+.sidebar li { 
+    padding: 18px 20px; cursor: pointer; border-radius: 12px; font-weight: 700; 
+    margin-bottom: 10px; transition: 0.2s; color: #636e72; font-size: 1rem;
+}
+.sidebar li:hover { background: #f1f2f6; color: #2d3436; }
 
+/* 배경 블러 오버레이 */
 .overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(255,255,255,0.2); backdrop-filter: blur(5px);
-    display: none; z-index: 900;
+    background: rgba(255,255,255,0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: none; z-index: 1050; animation: fadeIn 0.3s;
 }
 .overlay.open { display: block; }
 
-.menu-trigger {
-    position: fixed; top: 25px; left: 20px; z-index: 1100; cursor: pointer;
-    display: flex; flex-direction: column; gap: 5px; width: 25px;
-}
-.menu-trigger span { display: block; height: 3px; background: #333; border-radius: 3px; }
+/* 4. 탭 전환 스위치 */
+.tab-wrapper { display: flex; gap: 10px; margin-bottom: 25px; background: #dfe6e9; padding: 5px; border-radius: 12px; }
+.tab-btn { flex: 1; border: none; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.3s; background: transparent; color: #636e72; }
+.tab-btn.active { background: white; color: #2d3436; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
 
-/* 주식형 리스트 스타일 */
+/* 5. 대시보드(기존) 카드 디자인 */
+.section-title { font-size: 1.1rem; font-weight: 700; margin: 30px 0 15px; padding-left: 10px; border-left: 4px solid #2d3436; }
+.section-title.rise { border-color: var(--yes-red); color: var(--yes-red); }
+.section-title.fall { border-color: var(--ala-blue); color: var(--ala-blue); }
+
+.list-wrapper { display: flex; flex-direction: column; gap: 10px; }
+.book-card { 
+    background: white; padding: 15px; border-radius: 12px; display: flex; align-items: center; 
+    box-shadow: var(--card-shadow); transition: 0.2s;
+}
+.book-card:hover { transform: translateY(-3px); }
+.rank { font-weight: 800; width: 35px; color: #b2bec3; font-size: 0.9rem; }
+.book-img { width: 45px; height: 65px; background: #eee; border-radius: 4px; margin-right: 15px; object-fit: cover; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.book-info { flex: 1; min-width: 0; }
+.book-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-val { font-weight: 800; font-size: 1.05rem; text-align: right; min-width: 80px; }
+
+/* 6. 주식형(Stock View) 리스트 디자인 */
 .stock-item {
-    background: white; margin-bottom: 2px; padding: 12px 15px;
-    display: grid; grid-template-columns: 40px 1fr 100px 120px 80px;
-    align-items: center; border-bottom: 1px solid #eee;
+    background: white; margin-bottom: 1px; padding: 14px 18px;
+    display: grid; grid-template-columns: 40px 1fr 100px 130px 100px;
+    align-items: center; transition: background 0.2s;
 }
-.stock-title { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stock-date { font-size: 0.7rem; color: #999; font-weight: 400; }
-.stock-val { text-align: right; font-weight: 800; font-size: 0.95rem; }
-.stock-change-group { text-align: right; display: flex; flex-direction: column; gap: 2px; }
-.stock-sub-val { font-size: 0.75rem; font-weight: 600; }
-.sparkline-container { width: 80px; height: 30px; padding-left: 10px; }
+.stock-item:hover { background: #fcfcfc; }
+.stock-title { font-size: 0.95rem; font-weight: 700; color: #2d3436; margin-bottom: 2px; display: block; }
+.stock-date { font-size: 0.7rem; color: #b2bec3; font-weight: 400; }
+.stock-val { text-align: right; font-weight: 900; font-size: 1.1rem; color: #111; }
+.stock-change-group { text-align: right; display: flex; flex-direction: column; gap: 3px; }
+.stock-sub-val { font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.sparkline-container { width: 100px; height: 35px; padding-left: 15px; }
+.sparkline-container canvas { width: 100%; height: 100%; }
 
-/* 모바일 대응 */
-@media (max-width: 600px) {
-    .stock-item { grid-template-columns: 30px 1fr 80px 70px; }
-    .sparkline-container { display: none; }
+/* 7. 시각적 보조 장치 (구분선/배지) */
+.period-divider { display: flex; align-items: center; margin: 50px 0 20px; }
+.period-badge { background-color: #2d3436; color: white; font-size: 0.7rem; font-weight: 800; padding: 4px 12px; border-radius: 20px; margin-right: 15px; }
+.period-line { flex-grow: 1; height: 1px; background: linear-gradient(to right, #dfe6e9, transparent); }
+
+/* 8. 컬러 공통 적용 */
+.val-rise { color: var(--yes-red) !important; }
+.val-fall { color: var(--ala-blue) !important; }
+
+/* 9. 애니메이션 및 모바일 대응 */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+@media (max-width: 650px) {
+    body { padding: 15px; }
+    .container { padding-top: 30px; }
+    header h1 { font-size: 1.5rem; }
+    
+    /* 모바일에서는 주식형 뷰 간소화 */
+    .stock-item { grid-template-columns: 30px 1fr 80px 85px; padding: 12px; }
+    .sparkline-container { display: none; } /* 모바일은 차트 생략 */
+    .stock-val { font-size: 0.95rem; }
+    .stock-sub-val { font-size: 0.7rem; }
 }
