@@ -6,29 +6,83 @@ let allBooks = [];
 let currentChannel = 'yes24';
 let currentPage = 'dashboard';
 
+// --- [핵심] 한국 시간(KST) 기준 스마트 캐시 로직 ---
 async function init() {
-    try {
-        const response = await fetch(JSON_URL);
-        const text = await response.text();
-        const jsonData = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-        
-        allBooks = jsonData.table.rows.map(row => {
-            const c = row.c;
-            return {
-                title: c[0] ? String(c[0].v) : "",
-                openDateStr: c[3] ? String(c[3].f || c[3].v) : "", 
-                openDate: c[3] ? parseGoogleDate(c[3].v) : null,
-                yes_cur: parseVal(c[6]), yes_day: parseVal(c[8]), yes_week: parseVal(c[10]), yes_month: parseVal(c[12]),
-                ala_cur: parseVal(c[13]), ala_day: parseVal(c[15]), ala_week: parseVal(c[17]), ala_month: parseVal(c[19]),
-                img: c[20] ? String(c[20].v) : ""
-            };
-        }).filter(b => b.title && b.title !== "null");
+    const cacheKey = 'book_sales_data';
+    const cacheTimeKey = 'book_sales_timestamp';
+    
+    // 1. 현재 한국(서울) 시간 구하기
+    const nowSeoul = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+    
+    // 2. 저장된 데이터와 수집 시각 확인
+    const savedData = localStorage.getItem(cacheKey);
+    const lastUpdateTimestamp = localStorage.getItem(cacheTimeKey);
 
+    // 3. 오늘 한국 시간 오전 7시 시점 구하기
+    const seoul7AM = new Date(nowSeoul);
+    seoul7AM.setHours(7, 0, 0, 0);
+
+    let needFetch = false;
+
+    if (!savedData || !lastUpdateTimestamp) {
+        needFetch = true; // 데이터가 아예 없는 경우
+    } else {
+        // 마지막 수집 시각을 한국 시간으로 변환
+        const lastFetchSeoul = new Date(new Date(parseInt(lastUpdateTimestamp)).toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+        
+        // 현재 서울이 7시 이후인데, 마지막 수집이 서울 7시 이전이었다면? 새로고침!
+        if (nowSeoul > seoul7AM && lastFetchSeoul < seoul7AM) {
+            needFetch = true;
+        } else {
+            needFetch = false;
+        }
+    }
+
+    if (!needFetch) {
+        console.log("🚀 KST 캐시: 서울 시간 기준 저장된 데이터를 사용합니다.");
+        allBooks = JSON.parse(savedData);
         render();
-        document.getElementById('update-time').innerText = `최근 업데이트: ${new Date().toLocaleString('ko-KR')}`;
-    } catch (e) { console.error("데이터 로드 에러:", e); }
+        updateTimestamp(true, lastUpdateTimestamp);
+    } else {
+        console.log("📡 KST 캐시: 한국 시간 오전 7시가 지나 최신 데이터를 가져옵니다.");
+        try {
+            const response = await fetch(JSON_URL);
+            const text = await response.text();
+            const jsonData = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+            
+            allBooks = jsonData.table.rows.map(row => {
+                const c = row.c;
+                return {
+                    title: c[0] ? String(c[0].v) : "",
+                    openDateStr: c[3] ? String(c[3].f || c[3].v) : "", 
+                    openDate: c[3] ? parseGoogleDate(c[3].v) : null,
+                    yes_cur: parseVal(c[6]), yes_day: parseVal(c[8]), yes_week: parseVal(c[10]), yes_month: parseVal(c[12]),
+                    ala_cur: parseVal(c[13]), ala_day: parseVal(c[15]), ala_week: parseVal(c[17]), ala_month: parseVal(c[19]),
+                    img: c[20] ? String(c[20].v) : ""
+                };
+            }).filter(b => b.title && b.title !== "null");
+
+            // 수집한 시각(현재 실제 시간)과 데이터를 저장
+            localStorage.setItem(cacheKey, JSON.stringify(allBooks));
+            localStorage.setItem(cacheTimeKey, new Date().getTime().toString());
+
+            render();
+            updateTimestamp(false, new Date().getTime());
+        } catch (e) { 
+            console.error("데이터 로드 에러:", e); 
+            document.getElementById('update-time').innerText = "데이터 로드 실패";
+        }
+    }
 }
 
+function updateTimestamp(isCached, timestamp) {
+    // 화면 표시 시간도 한국 시간으로 고정해서 표시
+    const seoulTimeStr = new Date(parseInt(timestamp)).toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'});
+    const label = isCached ? "(KST 저장됨)" : "(KST 최신)";
+    document.getElementById('update-time').innerText = `최근 업데이트: ${seoulTimeStr} ${label}`;
+}
+
+// --- 유틸리티 및 렌더링 함수는 기존과 동일 ---
 function parseGoogleDate(d) {
     const m = String(d).match(/Date\((\d+),(\d+),(\d+)\)/);
     return m ? new Date(m[1], m[2], m[3]) : new Date(d);
@@ -88,8 +142,6 @@ function render() {
             if (conf.type === 'rise') data = data.filter(b => b[conf.k] > 0);
             if (conf.type === 'fall') data = data.filter(b => b[conf.k] < 0);
             data.sort((a,b) => conf.type === 'fall' ? a[conf.k]-b[conf.k] : b[conf.k]-a[conf.k]);
-            
-            // [수정] 각 설정값(l)에 맞춰 리스트 개수 조절
             data = data.slice(0, conf.l);
             
             if (data.length > 0) {
