@@ -6,10 +6,11 @@ let allBooks = [];
 let currentChannel = 'yes24';
 let currentPage = 'dashboard';
 
-// --- [핵심] 한국 시간(KST) 기준 스마트 캐시 로직 ---
+// --- [핵심] 한국 시간(KST) 기준 스마트 캐시 로직 (v3) ---
 async function init() {
-    const cacheKey = 'book_sales_data';
-    const cacheTimeKey = 'book_sales_timestamp';
+    // 버전을 v3로 올려서 기존에 꼬인 캐시(v2)를 무시하도록 설정
+    const cacheKey = 'book_sales_data_v3';
+    const cacheTimeKey = 'book_sales_timestamp_v3';
     
     const nowSeoul = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
     const savedData = localStorage.getItem(cacheKey);
@@ -19,19 +20,26 @@ async function init() {
     seoul7AM.setHours(7, 0, 0, 0);
 
     let needFetch = false;
+
     if (!savedData || !lastUpdateTimestamp) {
         needFetch = true;
     } else {
-        const lastFetchSeoul = new Date(new Date(parseInt(lastUpdateTimestamp)).toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
-        if (nowSeoul > seoul7AM && lastFetchSeoul < seoul7AM) {
+        try {
+            const lastFetchSeoul = new Date(new Date(parseInt(lastUpdateTimestamp)).toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
+            if (nowSeoul > seoul7AM && lastFetchSeoul < seoul7AM) {
+                needFetch = true;
+            } else {
+                // 데이터 파싱 테스트 (꼬인 데이터 방지)
+                allBooks = JSON.parse(savedData);
+                needFetch = false;
+            }
+        } catch (e) {
+            console.error("캐시 데이터 오염 감지: 새로 고침합니다.");
             needFetch = true;
-        } else {
-            needFetch = false;
         }
     }
 
-    if (!needFetch) {
-        allBooks = JSON.parse(savedData);
+    if (!needFetch && allBooks.length > 0) {
         render();
         updateTimestamp(true, lastUpdateTimestamp);
     } else {
@@ -44,7 +52,7 @@ async function init() {
                 const c = row.c;
                 return {
                     title: c[0] ? String(c[0].v) : "",
-                    openDateStr: c[3] ? String(c[3].f || c[3].v).replace('등록', '').trim() : "", // "등록" 글자 제거
+                    openDateStr: c[3] ? String(c[3].f || c[3].v).replace('등록', '').trim() : "", 
                     openDate: c[3] ? parseGoogleDate(c[3].v) : null,
                     yes_cur: parseVal(c[6]), yes_day: parseVal(c[8]), yes_week: parseVal(c[10]), yes_month: parseVal(c[12]),
                     ala_cur: parseVal(c[13]), ala_day: parseVal(c[15]), ala_week: parseVal(c[17]), ala_month: parseVal(c[19]),
@@ -57,11 +65,13 @@ async function init() {
 
             render();
             updateTimestamp(false, new Date().getTime());
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("데이터 로드 에러:", e);
+            document.getElementById('update-time').innerText = "데이터 로드 실패: 새로고침 해주세요.";
+        }
     }
 }
 
-// 상단 업데이트 시간 포맷 수정 (2026. 00. 00 오전 07:00 형식)
 function updateTimestamp(isCached, timestamp) {
     const date = new Date(parseInt(timestamp));
     const formatter = new Intl.DateTimeFormat('ko-KR', {
@@ -69,17 +79,14 @@ function updateTimestamp(isCached, timestamp) {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', hour12: true
     });
-    
-    // 포맷 정돈: . 대신 . 으로 통일 (2026. 03. 23. 오전 08:53)
-    let formatted = formatter.format(date).replace(/\s/g, ' ');
+    let formatted = formatter.format(date).replace(/\. /g, '. ').trim();
     const label = isCached ? "(KST 저장됨)" : "(KST 최신)";
     document.getElementById('update-time').innerText = `최근 업데이트: ${formatted} ${label}`;
 }
 
-// 변동 수치 표시 (0일 때 -0 표시 로직 추가)
 function getStat(val) {
     if (isNaN(val)) return { s: '-', c: 'val-no-change' };
-    if (val === 0) return { s: '-0', c: 'val-no-change' }; // 무변동 시 -0 표기
+    if (val === 0) return { s: '-0', c: 'val-no-change' };
     return { s: (val > 0 ? '↑' : '↓') + ' ' + Math.abs(val).toLocaleString(), c: val > 0 ? 'val-rise' : 'val-fall' };
 }
 
@@ -98,7 +105,6 @@ function toggleMenu() {
     document.getElementById('overlay').classList.toggle('open');
 }
 
-// 페이지 타이틀 변경 적용
 function showPage(page) {
     currentPage = page;
     document.getElementById('page-title').innerHTML = page === 'dashboard' ? '출판콘텐츠사업단 <span>신간 판매 현황</span>' : '신간 <span>판매지수 현황</span>';
@@ -159,7 +165,6 @@ function render() {
         view.innerHTML = '';
         fresh.sort((a,b) => b.openDate - a.openDate).forEach((b, i) => {
             const d = getStat(b[`${prefix}_day`]), w = getStat(b[`${prefix}_week`]), m = getStat(b[`${prefix}_month`]);
-            // (작일) 텍스트 제거 및 깔끔한 출력
             view.innerHTML += `<div class="stock-item"><div class="rank">${i+1}</div><div class="book-info"><div class="stock-title">${b.title}</div><div class="stock-date">${b.openDateStr}</div></div><div class="stock-val">${isNaN(b[`${prefix}_cur`]) ? '-' : b[`${prefix}_cur`].toLocaleString()}</div><div class="stock-change-group"><div class="stock-sub-val ${d.c}">${d.s}</div><div class="stock-sub-val" style="font-size:0.6rem; color:#999">주 ${w.s} | 월 ${m.s}</div></div></div>`;
         });
     }
